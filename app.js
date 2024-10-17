@@ -1,73 +1,71 @@
-//https://www.youtube.com/watch?v=cl186ePedMg&ab_channel=Helpfolder -> instalare curl
-//https://medium.com/@vikas.taank_40391/everything-that-you-need-to-know-about-oauth2-fb6a29b59e46 -> OAuth
-//https://www.youtube.com/watch?v=ZV5yTm4pT8g&ab_channel=ByteByteGo -> despre OAuth , despre proces
-//https://frontegg.com/blog/oauth-vs-jwt
-
 const express = require("express");
-const bodyParser = require("body-parser");
+const cors = require("cors");
+const morgan = require("morgan");
+const mongoose = require("mongoose");
+const dotenv = require("dotenv");
+
+dotenv.config();
+
+const routerApi = require("./routes/index.js");
+const coreOptions = require("./cors");
 
 const app = express();
-const port = 3000;
 
-let todos = [
-  { id: 1, title: "Buy groceries", completed: false },
-  { id: 2, title: "Make sport", completed: true },
-];
+app.use(express.json());
+app.use(cors(coreOptions));
+app.use(morgan("tiny"));
 
-app.use(bodyParser.json());
+app.use("/api", routerApi);
 
-app.get("/todos", (req, res) => {
-  res.json(todos);
+app.use((_, res, __) => {
+  res.status(404).json({
+    status: "error",
+    code: 404,
+    message: "Use api on routes: /api/tasks",
+    data: "Not found",
+  });
 });
 
-app.post("/todos", (req, res) => {
-  const { title, completed } = req.body;
-
-  const newTodo = {
-    id: todos.length + 1,
-    title,
-    completed,
-  };
-  todos.push(newTodo);
-  console.log("After POST: ", todos);
-  res.status(201).json(newTodo);
+app.use((err, _, res, __) => {
+  console.log(err.stack);
+  res.status(500).json({
+    status: "fail",
+    code: 500,
+    message: err.message,
+    data: "Internal Server Error",
+  });
 });
 
-// Inlocuieste resursa complet
-app.put("/todos/:id", (req, res) => {
-  const id = parseInt(req.params.id);
-  const { title, completed } = req.body;
+const PORT = process.env.PORT_SERVER || 5000;
+const DB_URL = process.env.DB_URL;
 
-  const todoIndex = todos.findIndex((todo) => todo.id === id);
-
-  // inlocuit intregul todo
-  todos[todoIndex] = { id, title, completed };
-  console.log("After PUT: ", todos);
-  res.json(todos[todoIndex]);
-});
-
-// Inlocuieste resursa partial
-app.patch("/todos/:id", (req, res) => {
-  const id = parseInt(req.params.id);
-  const { title, completed } = req.body;
-
-  const todoIndex = todos.findIndex((todo) => todo.id === id);
-  if (todoIndex === -1) {
-    return res.status(400).json({ message: "Todo not found" });
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.DB_URL);
+    console.log("MongoDB connected successfully");
+  } catch (error) {
+    console.error("MongoDB connection failed:", error.message);
+    process.exit(1);
   }
+};
+connectDB();
 
-  if (title !== undefined) {
-    todos[todoIndex].title = title;
-  }
+// mongoose
+//   .connect(DB_URL, {
+//     useNewUrlParser: true,
+//     useUnifiedTopology: true,
+//     family: 4,
+//   })
+//   .then(() => {
+//     console.log("Serverul MongoDB ruleaza");
+//     app.listen(PORT, () => {
+//       console.log(`Server running. Use our API on port: ${PORT}`);
+//     });
+//   })
+//   .catch((err) => {
+//     console.log(`Serverul nu realza. Eroare:${err.message}`);
+//   });
 
-  if (completed !== undefined) {
-    todos[todoIndex].completed = completed;
-  }
-
-  console.log("After Patch: ", todos);
-  res.json(todos[todoIndex]);
-});
-
-app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
-});
+//https://www.mongodb.com/resources/compare/relational-vs-non-relational-databases
+//https://www.datastax.com/guides/nosql-use-cases#1-e-commerce-applications
+//https://mongoosejs.com/docs/plugins.html
