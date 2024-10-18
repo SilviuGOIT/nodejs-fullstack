@@ -1,6 +1,19 @@
-const { getAllUsers, createUser, updateUser } = require("../services/index");
+const jwt = require("jsonwebtoken");
+const User = require("../services/schemas/UserSchema");
+require("dotenv").config();
 
-const get = async (req, res, next) => {
+const secret = process.env.SECRET;
+
+const {
+  getAllUsers,
+  createUser,
+  updateUser,
+  checkUserDB,
+  getAllTutors,
+  findUserName,
+} = require("../services/index");
+
+const getUsersController = async (req, res, next) => {
   try {
     const results = await getAllUsers();
     res.json({
@@ -17,52 +30,86 @@ const get = async (req, res, next) => {
   }
 };
 
-const create = async (req, res, next) => {
+const getTutorsController = async (req, res, next) => {
   try {
-    const { nume, varsta, anNastere, oras, cetatenie, major } = req.body;
+    const results = await getAllTutors();
 
-    // // // Validate incoming data
-    // if (!nume || !varsta || !anNastere || !oras || !cetatenie || !major) {
-    //   return res.status(400).json({
-    //     status: "error",
-    //     code: 400,
-    //     message: "All fields are required.",
-    //   });
-    // }
-
-    const result = await createUser({
-      nume,
-      varsta,
-      anNastere,
-      oras,
-      cetatenie,
-      major,
-    });
-
-    res.status(201).json({
-      status: "succes",
-      code: 201,
-      data: result,
+    res.json({
+      status: "Success",
+      code: 200,
+      data: results,
     });
   } catch (error) {
-    console.error("Error creating user:", error);
-    res.status(500).json({
-      status: "error",
-      code: 500,
-      message: "Internal Server Error. Could not create user.",
+    res.status(404).json({
+      status: 404,
+      code: 404,
     });
     next(error);
   }
 };
 
-const update = async (req, res, next) => {
+const createUserController = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    const result = await createUser({
+      email,
+      password,
+    });
+
+    const payload = { email: result.email };
+
+    const token = jwt.sign(payload, secret, { expiresIn: "1h" });
+
+    res.status(201).json({
+      status: "succes",
+      code: 201,
+      data: { email: result.email, token },
+    });
+  } catch (error) {
+    res.status(404).json({
+      status: 404,
+      error: error.message,
+    });
+  }
+};
+
+const loginUserController = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const result = await checkUserDB({
+      email,
+      password,
+    });
+
+    const payload = { email: result.email };
+
+    const token = jwt.sign(payload, secret, { expiresIn: "1h" });
+
+    res.status(201).json({
+      status: "succes",
+      code: 201,
+      data: {
+        email: result.email,
+        token,
+      },
+    });
+  } catch (error) {
+    res.status(404).json({
+      status: 404,
+      error: error.message,
+    });
+  }
+};
+
+const updateUserController = async (req, res, next) => {
   const { userId } = req.params;
   const { major } = req.body;
   try {
     const result = await updateUser(userId, { major });
     console.log(result);
     if (result) {
-      res.status(200).json({
+      res.status(404).json({
         status: "updated",
         code: 200,
         data: result,
@@ -70,17 +117,53 @@ const update = async (req, res, next) => {
     }
   } catch (error) {
     console.log(error);
-    res.status(500).json({
+    res.status(404).json({
       status: "error",
-      code: 500,
-      message: "Internal Server Error. Could not update user.",
     });
-    next(error);
+  }
+};
+
+const getCurrentUserName = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      // Dacă antetul "Authorization" lipsește, returnați o eroare de autentificare
+      return res
+        .status(401)
+        .json({ status: "error", message: "Missing Authorization header" });
+    }
+
+    // Extrageți token-ul eliminând prefixul "Bearer "
+    const token = authHeader.split(" ")[1];
+
+    // Verificați token-ul utilizând cheia secretă
+    const user = jwt.verify(token, secret);
+    console.log(user);
+    // Continuați cu logica dvs. pentru a găsi utilizatorul și a trimite răspunsul
+    const result = await findUserName({ email: user.email });
+    console.log(result);
+    if (result) {
+      res.status(200).json({
+        status: "success",
+        code: 200,
+        data: { name: result.name },
+      });
+    } else {
+      // Returnați o eroare 404 sau 401 în funcție de situație
+      res.status(404).json({ status: "error", message: "User not found" });
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ status: "error", message: "Server error" });
   }
 };
 
 module.exports = {
-  get,
-  create,
-  update,
+  getUsersController,
+  createUserController,
+  loginUserController,
+  updateUserController,
+  getTutorsController,
+  getCurrentUserName,
 };

@@ -1,16 +1,22 @@
 const mongoose = require("mongoose");
+const bCrypt = require("bcryptjs");
 
 const Schema = mongoose.Schema;
 
-const user = new Schema({
-  nume: { type: String, required: [true], minLength: 2 },
-  varsta: { type: Number, required: [true], min: 1 },
-  anNastere: { type: Number, required: [true], min: 1 },
-  oras: { type: String, required: [true], minLength: 2 },
-  cetatenie: { type: String, required: [true], minLength: 2 },
-  major: { type: Boolean, required: [true] },
+const userSchema = new Schema({
+  email: { type: String, require: true, minLength: 2 },
+  password: { type: String, require: true, minLength: 2 },
+  name: { type: String, require: true, minLength: 2 },
 });
 
-const User = mongoose.model("users", user);
+userSchema.methods.setPassword = function (password) {
+  this.password = bCrypt.hashSync(password, bCrypt.genSaltSync(6));
+};
+
+userSchema.methods.validPassword = function (password) {
+  return bCrypt.compareSync(password, this.password);
+};
+
+const User = mongoose.model("users", userSchema);
 
 module.exports = User;
